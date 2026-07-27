@@ -1,0 +1,20 @@
+atmospheric model is upto a certain point post which drag effects taper off, so I have used a general exponential taper 
+
+
+Interpolation formula used for both ISP and thrust:
+basically using a ratio of current pressure and pressure at sea level to determine state between vaccum and sea level:
+ie:
+if ratio is 1, then sea level values, and if ratio is 0 then vaccum values. 
+
+S is a list of the current state at all points, when passed through the derivative() functtion it returns d which is a list of all the different rates of change
+
+Instead of Euler's method for integration, I've applied a method called Rk4 for more accuracy.
+
+
+
+For 2D Addition:
+ function get angle uses an angle theta that is linearly increased as t grows larger up till max angle is achieved at 
+
+ derivative functions now consider x, vx and vy 
+
+ horizontal velocity addition helps get into orbit 
