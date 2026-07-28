@@ -1,20 +1,33 @@
-atmospheric model is upto a certain point post which drag effects taper off, so I have used a general exponential taper 
+V1:
+    atmospheric model is upto a certain point post which drag effects taper off, so I have used a general exponential taper 
+
+    Interpolation formula used for both ISP and thrust:
+    basically using a ratio of current pressure and pressure at sea level to determine state between vaccum and sea level:
+    ie:
+        if ratio is 1, then sea level values, and if ratio is 0 then vaccum values. 
+
+    S is a list of the current state at all points, when passed through the derivative() functtion it returns d which is a list of all the different rates of change
+
+    Instead of Euler's method for integration, I've applied a method called Rk4 for more accuracy.
+    RK4:
+        -Eulers method assumes that there is no change in between the time step chosen, it just extends the straight tangent line at that point for the whole timestep
+        -Rk4 computes the slope at 4 different points throughout the time step and uses an average slope for more accurate results
 
 
-Interpolation formula used for both ISP and thrust:
-basically using a ratio of current pressure and pressure at sea level to determine state between vaccum and sea level:
-ie:
-if ratio is 1, then sea level values, and if ratio is 0 then vaccum values. 
 
-S is a list of the current state at all points, when passed through the derivative() functtion it returns d which is a list of all the different rates of change
+V2:
+    function get angle uses an angle theta that is linearly increased as t grows larger up till max angle is achieved at 
 
-Instead of Euler's method for integration, I've applied a method called Rk4 for more accuracy.
+    derivative functions now consider x, vx and vy 
 
+    horizontal velocity addition helps get into orbit 
 
-
-For 2D Addition:
- function get angle uses an angle theta that is linearly increased as t grows larger up till max angle is achieved at 
-
- derivative functions now consider x, vx and vy 
-
- horizontal velocity addition helps get into orbit 
+V3: 
+    Objective: Refine pitch maneuver 
+    Changes:
+        - New coordinate system using v and gamma(angle between velocity and local horizontal) Instead of vy, vx
+        - Forces split along tangential and normal components to the velocity vector, where the normal component causes rotation
+        - during thrust, a commanded angle is added which is slightly different from gamma (smaller), this mismatch between the angles
+        creates a component of thrust along velocity and one perp. (happens during pitch)
+        - post pitch, gamma and commanded angle are same so thrust is in the direction of velocity.
+    
