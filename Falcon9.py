@@ -4,14 +4,18 @@ import matplotlib.pyplot as plt
 
 
 # rocket variables
-dry_mass = 25600   #kg
-propellent_mass = 395700
-m0 =  421300
+dry_mass1 = 25600
+dry_mass2 = 4000      
+propellent_mass1 = 395700
+propellent_mass2 = 92670    
+m0 =  517970
 A_e = 10.8 #rocket cross sectional area
 SL_thrust = 7607000 
 V_thrust = 8227000 
 SL_Isp = 282 
 V_Isp = 311 
+P2_Isp = 348
+Merlin_thrust = 934000
 
 # natural variables 
 RE = 6371000 # Radius of the earth 
@@ -31,12 +35,13 @@ dt = 0.5
 t_current = 0
 t_vertical = 10   # Time for straight vertical flight
 kick_duration = 5
-kick_angle = np.deg2rad(20)
+kick_angle = np.deg2rad(5)
 height = 0
 x = 0
 v = 0
 current_mass = m0
 gamma = np.deg2rad(90)
+current_stage = 1
 
 
 
@@ -74,14 +79,20 @@ def get_air_density(height):
     density =  pressure / (R_specific * Temp)
     return(density,pressure)
 
-def get_thrust(height,mass):
-    if mass > dry_mass:
+def get_thrust(height,mass,current_stage):
+    if (dry_mass1 + dry_mass2 + propellent_mass2) <= mass <= (dry_mass1 + dry_mass2 + propellent_mass1 + propellent_mass2):
         density, pressure = get_air_density(height)
         thrust =  V_thrust - (V_thrust - SL_thrust) * (pressure / P0)
         Isp = V_Isp - (V_Isp - SL_Isp) * (pressure / P0)
         v_e = Isp * g0
         mass_flow_rate = thrust/v_e
-    elif mass <= dry_mass:
+    elif current_stage == 2:
+        density, pressure = get_air_density(height)
+        thrust =  Merlin_thrust 
+        Isp = P2_Isp
+        v_e = Isp * g0
+        mass_flow_rate = thrust/v_e
+    else:
         thrust = 0
         mass_flow_rate = 0
     return(thrust, mass_flow_rate)
@@ -103,7 +114,7 @@ def derivative(S, t):
     density, pressure = get_air_density(height)
     theta = kick_phase(t)
     drag = 0.5 * density * (v**2) * A_e * Cd
-    thrust, mass_flow_rate = get_thrust(height,mass)
+    thrust, mass_flow_rate = get_thrust(height,mass, current_stage)
     gravity = get_gravity(height) * mass
     if t < t_vertical:
         commanded_thrust_angle = np.deg2rad(90)
@@ -126,7 +137,8 @@ def derivative(S, t):
         dgdt = ((thrust * np.sin(mismatch)) - (gravity * np.cos(gamma)))/(v * mass)
     return(dhdt, dxdt, dvdt, dmdt, dgdt)
 
-while current_mass > dry_mass and t_current < 300:
+seperated = False 
+while current_mass > dry_mass2 and t_current < 600:
     k1h, k1x, k1v, k1m, k1g = derivative(S ,t_current)
     S_temp = (height + k1h * dt/2, x + k1x * dt/2, v + k1v * dt/2, current_mass + k1m * dt/2, gamma +k1g * dt/2)
     k2h, k2x, k2v, k2m, k2g = derivative(S_temp, t_current + dt/2)
@@ -140,8 +152,8 @@ while current_mass > dry_mass and t_current < 300:
     m_new = current_mass + (dt/6) * (k1m + 2*k2m + 2*k3m + k4m)
     gamma_new = gamma + (dt/6) * (k1g + 2*k2g + 2*k3g + k4g)
 
-    if m_new < dry_mass:
-        m_new = dry_mass
+    if m_new < dry_mass2:
+        m_new = dry_mass2
 
     height = h_new
     x = x_new
@@ -157,6 +169,11 @@ while current_mass > dry_mass and t_current < 300:
     v_history.append(v)
     mass_history.append(current_mass)
     gamma_history.append(gamma)
+
+    if current_stage == 1 and current_mass <= dry_mass1 + dry_mass2 + propellent_mass2:
+        current_mass -= dry_mass1
+        current_stage = 2
+    S = (height, x, v, current_mass, gamma)
 
 plt.style.use(['science', 'notebook', 'grid'])
 fig, axs = plt.subplots(3, 2, figsize=(10, 8))
