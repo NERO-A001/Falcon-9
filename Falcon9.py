@@ -17,9 +17,11 @@ V_Isp = 311
 P2_Isp = 348
 Merlin_thrust = 934000
 
+
 # natural variables 
 RE = 6371000 # Radius of the earth 
 g0 = 9.80665 # gravitational acceleration at sea level
+mu = g0 * RE**2
 t0 = 288.15  #Temp at sea level  kelvin
 L = 0.0065   #lapse rate kelvin per metre
 L3 = 0.001 #lapse rate in stratosphere subsection 3
@@ -30,19 +32,21 @@ R = 8.31447  #universal gas constant
 R_specific = R / M_air  #specific gas constant
 Cd = 0.3 #drag coefficient 
 
+
 #state variables
 dt = 0.5
 t_current = 0
 t_vertical = 10   # Time for straight vertical flight
 kick_duration = 5
-kick_angle = np.deg2rad(5)
+kick_angle = np.deg2rad(7.5)
 height = 0
 x = 0
 v = 0
 current_mass = m0
 gamma = np.deg2rad(90)
 current_stage = 1
-
+SOE_history = [np.nan]
+perigee_altitude_history = [np.nan]
 
 
 t_history = [t_current]
@@ -52,7 +56,6 @@ v_history = [v]
 mass_history = [current_mass]
 gamma_history = [gamma]
 S = (height, x, v, current_mass, gamma)
-
 
 
 def get_gravity(height):
@@ -79,13 +82,16 @@ def get_air_density(height):
     density =  pressure / (R_specific * Temp)
     return(density,pressure)
 
-def get_thrust(height,mass,current_stage):
+def get_thrust(height,mass,current_stage,orbit_achieved):
     if (dry_mass1 + dry_mass2 + propellent_mass2) <= mass <= (dry_mass1 + dry_mass2 + propellent_mass1 + propellent_mass2):
         density, pressure = get_air_density(height)
         thrust =  V_thrust - (V_thrust - SL_thrust) * (pressure / P0)
         Isp = V_Isp - (V_Isp - SL_Isp) * (pressure / P0)
         v_e = Isp * g0
         mass_flow_rate = thrust/v_e
+    elif orbit_achieved == True:
+        thrust = 0
+        mass_flow_rate = 0
     elif current_stage == 2:
         density, pressure = get_air_density(height)
         thrust =  Merlin_thrust 
@@ -104,7 +110,6 @@ def kick_phase(t):
         theta = 0
     return(theta)
 
-
 def derivative(S, t):
     height = S[0]
     x = S[1]
@@ -114,7 +119,7 @@ def derivative(S, t):
     density, pressure = get_air_density(height)
     theta = kick_phase(t)
     drag = 0.5 * density * (v**2) * A_e * Cd
-    thrust, mass_flow_rate = get_thrust(height,mass, current_stage)
+    thrust, mass_flow_rate = get_thrust(height,mass, current_stage , orbit_achieved)
     gravity = get_gravity(height) * mass
     if t < t_vertical:
         commanded_thrust_angle = np.deg2rad(90)
@@ -138,7 +143,10 @@ def derivative(S, t):
     return(dhdt, dxdt, dvdt, dmdt, dgdt)
 
 seperated = False 
+orbit_achieved = False
 while current_mass > dry_mass2 and t_current < 600:
+    SOE = np.nan
+    perigee_altitude = np.nan
     k1h, k1x, k1v, k1m, k1g = derivative(S ,t_current)
     S_temp = (height + k1h * dt/2, x + k1x * dt/2, v + k1v * dt/2, current_mass + k1m * dt/2, gamma +k1g * dt/2)
     k2h, k2x, k2v, k2m, k2g = derivative(S_temp, t_current + dt/2)
@@ -163,20 +171,37 @@ while current_mass > dry_mass2 and t_current < 600:
     S = (height, x, v, current_mass, gamma)
     t_current = t_current + dt
 
+    if current_stage == 2:
+            r = RE + height 
+            SOE = ((v**2) / 2) - mu/r    #specific orbital energy
+            SAM = r * v * np.cos(gamma)    #specific angular momentum
+            if SOE < 0:
+                e = np.sqrt(1 + (2 * SOE * (SAM**2))/(mu**2)) #eccentricity
+                SMA = -mu/(2 * SOE) #semi-major axis — only valid when SOE < 0
+                perigee_altitude = SMA * (1 - e) - RE
+                if perigee_altitude > 150000:
+                    orbit_achieved = True
+
+
+            
+
     t_history.append(t_current)
     height_history.append(height)
     x_history.append(x)
     v_history.append(v)
     mass_history.append(current_mass)
     gamma_history.append(gamma)
+    SOE_history.append(SOE)
+    perigee_altitude_history.append(perigee_altitude)
 
     if current_stage == 1 and current_mass <= dry_mass1 + dry_mass2 + propellent_mass2:
         current_mass -= dry_mass1
+        separation_time = t_current
         current_stage = 2
     S = (height, x, v, current_mass, gamma)
 
 plt.style.use(['science', 'notebook', 'grid'])
-fig, axs = plt.subplots(3, 2, figsize=(10, 8))
+fig, axs = plt.subplots(4, 2, figsize=(10, 8))
 
 t_array = np.array(t_history)
 height_array = np.array(height_history)
@@ -184,22 +209,31 @@ x_array = np.array(x_history)
 v_array = np.array(v_history)
 mass_array = np.array(mass_history)
 gamma_array = np.array(gamma_history)
+SOE_array = np.array(SOE_history)
+perigee_array = np.array(perigee_altitude_history)
 
 maxh = np.argmax(height_array)
 xmax = np.argmax(x_array)
 maxv = np.argmax(v_array)
 minm = np.argmin(mass_array)
 ming = np.argmin(gamma_array)
+soef = np.nanargmax(SOE_array)
+sep_index = np.argmin(np.abs(t_array - separation_time))
 
 
 
 axs[0, 0].plot(t_array, mass_array)
 axs[0, 0].set_title("Mass")
+axs[0,0].scatter(t_array[sep_index], mass_array[sep_index], color = "red")
+axs[0,0].annotate(
+    f"MECO/Seperation: \n ({t_array[sep_index]:.2f}, {mass_array[sep_index]:.2f})",
+    (t_array[sep_index], mass_array[sep_index]),
+)
 axs[0,0].scatter(t_array[minm], mass_array[minm], color = "red")
 axs[0,0].annotate(
-    f"Fuel Over: \n ({t_array[minm]:.2f}, {mass_array[minm]:.2f})",
+    f"SECO: \n ({t_array[minm]:.2f}, {mass_array[minm]:.2f})",
     (t_array[minm], mass_array[minm]),
-    )
+)
 
 axs[0, 1].plot(t_array, height_array)
 axs[0, 1].set_title("Height")
@@ -231,9 +265,20 @@ axs[2, 1].plot(t_array, gamma_array)
 axs[2, 1].set_title("gamma")
 axs[2,1].scatter(t_array[ming], gamma_array[ming], color = "red")
 axs[2,1].annotate(
-    f"Max Range: \n ({t_array[ming]:.2f}, {gamma_array[ming]:.2f})",
+    f"Final Gamma: \n ({t_array[ming]:.2f}, {gamma_array[ming]:.2f})",
     (t_array[ming], gamma_array[ming]),
 )
+
+axs[3, 0].plot(t_array, SOE_array)
+axs[3, 0].set_title("SOE")
+axs[3,0].scatter(t_array[soef], SOE_array[soef], color = "red")
+axs[3,0].annotate(
+     f"Final SOE: \n ({t_array[soef]:.2f}, {SOE_array[soef]:.2f})",
+    (t_array[soef], SOE_array[soef]),
+)
+
+axs[3,1].plot(t_array, perigee_array)
+axs[3,1].set_title("Perigee Altitude")
 
 
 plt.tight_layout()

@@ -39,3 +39,12 @@ V4:
     Issue:
         -No orbital insertion, rocket continues until propellant is exhausted.
     
+V5:
+    Objective: Add Orbital mechanics/SECO
+    Changes:
+        -Calculates Orbital mechanics values for every timestep after stage 2 begins
+        -checks if orbit is valid: SOE<0, perigee altitude > 150km 
+        -tuned kick angle slightly to achieve better gamma values
+        -plot MECO and SECO points seperately
+    nuances:
+        -Gamma value tends to go negative by the end, happens because integration loop keeps going causing post apogee downward arc values to get recorded
