@@ -48,3 +48,15 @@ V5:
         -plot MECO and SECO points seperately
     nuances:
         -Gamma value tends to go negative by the end, happens because integration loop keeps going causing post apogee downward arc values to get recorded
+
+V6:
+    Polar coordinates, Orbit visualisation, Code revamp
+    Changes:
+        * curvature term  +(v cos gamma)/r  in dgamma/dt        (spherical Earth)
+        * polar angle phi integrated as a state variable        (replaces flat-Earth x)
+        * payload + fairing mass; get_thrust keyed on stage, not on absolute mass
+        * 4 g throttle cap
+        * closed-loop pitch guidance on stage 2 (altitude -> vertical speed -> gamma)
+        * engine cutoff located exactly by bisection on the final RK4 step
+        * full orbital-element set + insertion report
+        * orbit visualisation with an analytic conic overlaid on the integrated arc
